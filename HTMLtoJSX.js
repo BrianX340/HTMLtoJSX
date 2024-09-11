@@ -1,47 +1,48 @@
 function convertHtmlToJsx(htmlStr) {
-    let tempHtml = `${htmlStr}`
-    function propertyToJsonProperty(property){
-        let newProperty = ''
-        if (property.includes('-')){
-            let all = property.split('-')
-            newProperty += all[0]
-            newProperty += `${all[1][0].toUpperCase()}${all[1].slice(1)}`
-        }
-        else {
-            return property
-        }
-        return newProperty
+    const styleRegex = /style="([^"]+)"/g;
+  
+    function propertyToJsonProperty(property) {
+      return property.replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     }
 
-    let arr = tempHtml.split("'")
-    let prox = false
-    for (let index = 0; index < arr.length; index++) {
-        var cadena = arr[index];
-        if (cadena.includes('style=')){
-            prox = true
+    htmlStr = htmlStr.replace(styleRegex, (match, styleString) => {
+      const styleObject = {};
+      styleString.split(';').forEach((property) => {
+        const [key, value] = property.trim().split(':');
+        if (key && value) {
+          styleObject[propertyToJsonProperty(key)] = value;
         }
-        else if (prox == true){
-            prox = false
-            let newStyle = '{{'
-            let propertys = cadena.split(';')
-            for (let index = 0; index < propertys.length; index++) {
-                var property = propertys[index];
-                if (property == ''){
-                    continue
-                }
-                let keyValue = property.replaceAll(' ','').split(':')
-                let key = propertyToJsonProperty(keyValue[0])
-                let value = keyValue[1]
-                newStyle+=`${key}:'${value}',`
-            }
-            newStyle+='}}'
-            arr[index] = newStyle
-            htmlStr = htmlStr.replace(cadena,newStyle)
-        }
+      });
+      return `style={{ ${Object.entries(styleObject)
+        .map(([key, value]) => `${key}: '${value}'`)
+        .join(', ')} }}`;
+    });
+  
+    htmlStr = htmlStr.replace(/class=/g, 'className=')
+      .replace(/<(\w+)>/g, '<$1 />') // Self-closing tags
+      .replace(/<(\w+)>(.*?)<\/\1>/g, (match, tag, content) => {
+        return `<${tag}>${content}</${tag}>`;
+      });
+  
+    return htmlStr;
+  }
+
+function convertJsxToHtml(jsxStr) {
+    if (!jsxStr || !jsxStr.trim()) {
+      return "";
     }
-    return htmlStr.replaceAll(",}}'", "}}").replaceAll("'{{", "{{").replaceAll("class=","className=")
+
+    jsxStr = jsxStr.replace(/className=/g, "class=")
+      .replace(/{{([^}]+)}}/g, (match, properties) => {
+        let styleAttributes = properties.split(",");
+        let styleString = "";
+        for (let attribute of styleAttributes) {
+          let [key, value] = attribute.trim().split(":");
+          key = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+          styleString += `${key}: ${value.replaceAll("'", "")}; `;
+        }
+        return `style="${styleString}"`.replaceAll('style="', '"').replaceAll('; "', ';"');
+      });
+  
+    return jsxStr;
 }
-
-const htmlString = "<div style='height: 500px;width: 300px;display: flex;'><div style='font-size: 20px; background-color: red;'></div></div>";
-
-console.log(convertHtmlToJsx(htmlString));  // <div style={{height:'500px',width:'300px',display:'flex'}}><div style={{fontSize:'20px',backgroundColor:'red'}}></div></div>
